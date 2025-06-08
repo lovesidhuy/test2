@@ -1,0 +1,82 @@
+Here are the main issues in your current SmartQuiz app based on the screenshots and your goal:
+
+⸻
+
+🔴 1. No Review Page After Quiz Completion
+	•	After finishing a quiz, you land on a “No questions available” screen.
+	•	You should instead see:
+	•	Which questions were correct ✅
+	•	Which were wrong ❌
+	•	What answer you selected vs. the correct one
+	•	Missing feedback defeats the purpose of practice.
+
+⸻
+
+🟠 2. No Option to Retry Wrong Questions
+	•	There’s no feature to:
+	•	Retry only the questions you got wrong
+	•	Learn by repetition
+	•	This makes the app less useful for targeted learning and revision.
+
+⸻
+
+🔴 3. Sessions Lack Navigation and Resumability
+	•	Once started, you can’t:
+	•	Go back to previous questions
+	•	Resume an incomplete session from where you left off
+	•	You’re stuck in a linear one-way flow.
+
+⸻
+
+🟠 4. Questions Not Persistently Stored
+	•	Questions appear to be loaded in-memory only (from JSON at startup or hardcoded).
+	•	You can’t:
+	•	Add new questions via interface
+	•	Edit or delete questions after loading
+	•	Maintain chapters as growing content
+
+⸻
+
+🟠 5. Session Stats Are Shallow
+	•	You only see:
+	•	Score (or “In progress”)
+	•	Total questions
+	•	You’re missing:
+	•	Which questions were answered
+	•	Time taken per question
+	•	Navigation to detailed review
+	•	Retry options per session
+
+⸻
+
+🟡 6. No State-Aware Question Flow
+	•	You can’t:
+	•	Mark a question for later review
+	•	Skip and return
+	•	Practice by difficulty or by tag (even if you don’t need this now, architecture doesn’t support it)
+
+⸻
+
+🟠 7. No Question Input Interface
+	•	You have no clean UI to:
+	•	Upload a .json file
+	•	Paste/import raw questions
+	•	Organize by topic/chapter
+
+⸻
+
+✅ Summary of What’s Missing
+
+Feature	Status	Priority
+Review after completion	❌ Missing	🔴 High
+Retry incorrect answers	❌ Missing	🔴 High
+Resume + Navigate questions	❌ Missing	🟠 Medium
+JSON upload/import UI	❌ Missing	🟠 Medium
+Persistent question storage	❌ Missing	🟠 Medium
+Session-wise breakdown	❌ Missing	🟡 Low
+
+
+
+⸻
+
+Want me to scaffold the full fix plan with updated frontend+backend code?
