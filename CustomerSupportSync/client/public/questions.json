@@ -1,0 +1,212 @@
+[
+  {
+    "id": "react-101",
+    "question": "What is the key difference between state and props in React?",
+    "options": [
+      "State is immutable, props are mutable",
+      "State is managed by the component, props are passed from parent",
+      "State is public, props are private",
+      "State is for styling, props are for data"
+    ],
+    "answer": 1,
+    "explanation": "Props (short for properties) are passed to a component from its parent and are read-only, while state is managed within the component and can be changed.",
+    "category": 2,
+    "difficulty": "medium"
+  },
+  {
+    "id": "js-101",
+    "question": "What will be logged to the console? console.log(typeof [])",
+    "options": [
+      "'array'",
+      "'object'",
+      "'[]'",
+      "'undefined'"
+    ],
+    "answer": 1,
+    "explanation": "In JavaScript, arrays are actually objects, so typeof [] returns 'object'.",
+    "category": 1,
+    "difficulty": "easy"
+  },
+  {
+    "id": "react-102",
+    "question": "Which hook would you use to run code only when a component mounts?",
+    "options": [
+      "useEffect(() => {}, [])",
+      "useEffect(() => {})",
+      "useState()",
+      "useRef()"
+    ],
+    "answer": 0,
+    "explanation": "useEffect with an empty dependency array runs only on component mount.",
+    "category": 2,
+    "difficulty": "easy"
+  },
+  {
+    "id": "js-102",
+    "question": "What is the output of: '5' + 3",
+    "options": [
+      "8",
+      "53",
+      "5 + 3",
+      "Error"
+    ],
+    "answer": 1,
+    "explanation": "When using the + operator with a string and a number, JavaScript converts the number to a string and performs concatenation.",
+    "category": 1,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ds-101",
+    "question": "What is the time complexity of searching for an element in a binary search tree in the worst case?",
+    "options": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n log n)"
+    ],
+    "answer": 2,
+    "explanation": "In the worst case (when the tree is skewed), the time complexity is O(n).",
+    "category": 4,
+    "difficulty": "medium"
+  },
+  {
+    "id": "py-101",
+    "question": "What is the output of this Python code? [x*2 for x in range(3)]",
+    "options": [
+      "[0, 2, 4]",
+      "[0, 1, 2, 3, 4, 5]",
+      "[0, 2, 4, 6]",
+      "[2, 4, 6]"
+    ],
+    "answer": 0,
+    "explanation": "This list comprehension takes each value in range(3) (which is 0, 1, 2) and multiplies it by 2, resulting in [0, 2, 4].",
+    "category": 3,
+    "difficulty": "easy"
+  },
+  {
+    "id": "algo-101",
+    "question": "Which sorting algorithm has the best average-case time complexity?",
+    "options": [
+      "Bubble Sort",
+      "Insertion Sort",
+      "Quick Sort",
+      "Selection Sort"
+    ],
+    "answer": 2,
+    "explanation": "Quick Sort has an average-case time complexity of O(n log n), which is better than the O(n²) of Bubble, Insertion, and Selection Sort.",
+    "category": 5,
+    "difficulty": "medium"
+  },
+  {
+    "id": "js-103",
+    "question": "What is the output of this code? console.log(2 + '2' - 1)",
+    "options": [
+      "21",
+      "3",
+      "1",
+      "22"
+    ],
+    "answer": 0,
+    "explanation": "First, 2 + '2' concatenates to '22' (string). Then '22' - 1 forces a string to number conversion, resulting in 21.",
+    "category": 1,
+    "difficulty": "medium"
+  },
+  {
+    "id": "react-103",
+    "question": "How do you prevent a component from re-rendering in React?",
+    "options": [
+      "Use shouldComponentUpdate lifecycle method",
+      "Use React.memo() or React.PureComponent",
+      "Set state to null",
+      "Use the static keyword"
+    ],
+    "answer": 1,
+    "explanation": "React.memo() for functional components and React.PureComponent for class components perform a shallow comparison of props and state to prevent unnecessary re-renders.",
+    "category": 2,
+    "difficulty": "hard"
+  },
+  {
+    "id": "py-102",
+    "question": "What is the output of this Python code? print(bool([]))",
+    "options": [
+      "True",
+      "False",
+      "None",
+      "Error"
+    ],
+    "answer": 1,
+    "explanation": "In Python, empty sequences (like an empty list []) evaluate to False when converted to a boolean.",
+    "category": 3,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ds-102",
+    "question": "Which data structure uses LIFO (Last In, First Out) principle?",
+    "options": [
+      "Queue",
+      "Stack",
+      "Linked List",
+      "Array"
+    ],
+    "answer": 1,
+    "explanation": "A stack follows the Last In, First Out (LIFO) principle, where the last element added is the first one to be removed.",
+    "category": 4,
+    "difficulty": "easy"
+  },
+  {
+    "id": "algo-102",
+    "question": "What is the time complexity of binary search?",
+    "options": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n²)"
+    ],
+    "answer": 1,
+    "explanation": "Binary search has a time complexity of O(log n) because it divides the search space in half with each step.",
+    "category": 5,
+    "difficulty": "easy"
+  },
+  {
+    "id": "js-104",
+    "question": "What does the 'this' keyword refer to in JavaScript?",
+    "options": [
+      "The current file",
+      "The current function",
+      "The object that is executing the current function",
+      "The global window object always"
+    ],
+    "answer": 2,
+    "explanation": "In most cases, 'this' refers to the object that is executing the current function. However, it can vary depending on how a function is called.",
+    "category": 1,
+    "difficulty": "hard"
+  },
+  {
+    "id": "react-104",
+    "question": "What is Redux used for in React applications?",
+    "options": [
+      "Server-side rendering",
+      "State management",
+      "Routing",
+      "Form validation"
+    ],
+    "answer": 1,
+    "explanation": "Redux is a predictable state container for JavaScript apps, commonly used with React for managing application state in a central store.",
+    "category": 2,
+    "difficulty": "medium"
+  },
+  {
+    "id": "py-103",
+    "question": "What is a decorator in Python?",
+    "options": [
+      "A design pattern",
+      "A function that takes another function and extends it",
+      "A class that inherits from another class",
+      "A way to add comments to your code"
+    ],
+    "answer": 1,
+    "explanation": "A decorator in Python is a function that takes another function as input, adds some functionality, and returns it without modifying the source code of the original function.",
+    "category": 3,
+    "difficulty": "hard"
+  }
+]
