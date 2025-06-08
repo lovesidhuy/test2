@@ -21,8 +21,8 @@ npm start
 The build output is placed in `dist/` and served by the server.
 
 
-
-## Environment Variables
+Set a `DATABASE_URL` pointing to a MySQL instance and define a `JWT_SECRET` for authentication.
+After installing dependencies you can run `npm run db:push` to create the tables using Drizzle ORM.
 
 Set a `DATABASE_URL` for database-backed features and define a `JWT_SECRET` for authentication.
 Run `npm run db:push` to create the schema in a fresh database.
