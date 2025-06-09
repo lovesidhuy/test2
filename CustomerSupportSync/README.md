@@ -31,3 +31,15 @@ For reference, `docs/schema.sql` includes a full MySQL schema covering
 subjects, chapters, quiz sets, questions and gameplay statistics. This file can
 be used to initialize a compatible MySQL 8 database.
 
+## API Overview
+
+- `GET /api/subjects` – list all subjects
+- `POST /api/subjects` – create a subject
+- `GET /api/chapters?subjectId=1` – list chapters within a subject
+- `POST /api/chapters` – create a chapter
+- `GET /api/quiz-sets?chapterId=1` – list quiz sets for a chapter
+- `POST /api/quiz-sets` – create a quiz set
+- `POST /api/quiz-sets/:id/questions` – add questions to a set
+- `POST /api/quiz/start` – begin a quiz attempt (pass 
+  `questionIds` and optional `quizSetId`)
+

@@ -1,4 +1,4 @@
-import { mysqlTable, text, serial, int, timestamp, boolean } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, serial, int, timestamp, boolean, json, primaryKey } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -54,6 +54,49 @@ export const insertSubjectSchema = createInsertSchema(subjects).pick({
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Subject = typeof subjects.$inferSelect;
 
+// Chapters belong to a subject
+export const chapters = mysqlTable("chapters", {
+  id: serial("id").primaryKey(),
+  subjectId: int("subject_id").references(() => subjects.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  sortOrder: int("sort_order").default(0),
+});
+
+export const insertChapterSchema = createInsertSchema(chapters).pick({
+  subjectId: true,
+  name: true,
+  description: true,
+  sortOrder: true,
+});
+
+export type InsertChapter = z.infer<typeof insertChapterSchema>;
+export type Chapter = typeof chapters.$inferSelect;
+
+// Quiz sets group questions within a chapter
+export const quizSets = mysqlTable("quiz_sets", {
+  id: serial("id").primaryKey(),
+  chapterId: int("chapter_id").references(() => chapters.id),
+  title: text("title").notNull(),
+  gptSourceJson: json("gpt_source_json"),
+  totalQuestions: int("total_questions"),
+  isActive: boolean("is_active").default(true),
+  createdBy: int("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertQuizSetSchema = createInsertSchema(quizSets).pick({
+  chapterId: true,
+  title: true,
+  gptSourceJson: true,
+  totalQuestions: true,
+  isActive: true,
+  createdBy: true,
+});
+
+export type InsertQuizSet = z.infer<typeof insertQuizSetSchema>;
+export type QuizSet = typeof quizSets.$inferSelect;
+
 // Question model with difficulty, category, and subject
 export const questions = mysqlTable("questions", {
   id: serial("id").primaryKey(),
@@ -80,10 +123,24 @@ export const insertQuestionSchema = createInsertSchema(questions).pick({
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type Question = typeof questions.$inferSelect;
 
+// Map questions to quiz sets
+export const setQuestions = mysqlTable(
+  "set_questions",
+  {
+    quizSetId: int("quiz_set_id").references(() => quizSets.id),
+    questionId: int("question_id").references(() => questions.id),
+    position: int("position").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.quizSetId, table.position] }),
+  })
+);
+
 // Quiz attempts
 export const attempts = mysqlTable("attempts", {
   id: serial("id").primaryKey(),
   userId: int("user_id").references(() => users.id),
+  quizSetId: int("quiz_set_id").references(() => quizSets.id),
   startedAt: timestamp("started_at").defaultNow(),
   finishedAt: timestamp("finished_at"),
   score: int("score"),
@@ -93,6 +150,7 @@ export const attempts = mysqlTable("attempts", {
 
 export const insertAttemptSchema = createInsertSchema(attempts).pick({
   userId: true,
+  quizSetId: true,
   totalQuestions: true,
 });
 

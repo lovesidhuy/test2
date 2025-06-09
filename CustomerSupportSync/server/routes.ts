@@ -238,6 +238,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chapters endpoints
+  app.get('/api/chapters', async (req, res) => {
+    try {
+      const subjectId = req.query.subjectId ? Number(req.query.subjectId) : undefined;
+      const chapters = await storage.getChapters(subjectId);
+      res.json({ chapters });
+    } catch (error) {
+      console.error('Get chapters error:', error);
+      res.status(500).json({ message: 'Error fetching chapters' });
+    }
+  });
+
+  app.post('/api/chapters', async (req, res) => {
+    try {
+      const { subjectId, name, description, sortOrder } = req.body;
+      if (!subjectId || !name) {
+        return res.status(400).json({ message: 'subjectId and name required' });
+      }
+      const chapter = await storage.createChapter({
+        subjectId,
+        name,
+        description,
+        sortOrder,
+      });
+      res.status(201).json({ chapter });
+    } catch (error) {
+      console.error('Create chapter error:', error);
+      res.status(500).json({ message: 'Error creating chapter' });
+    }
+  });
+
+  // Quiz set endpoints
+  app.get('/api/quiz-sets', async (req, res) => {
+    try {
+      const chapterId = req.query.chapterId ? Number(req.query.chapterId) : undefined;
+      const sets = await storage.getQuizSets(chapterId);
+      res.json({ quizSets: sets });
+    } catch (error) {
+      console.error('Get quiz sets error:', error);
+      res.status(500).json({ message: 'Error fetching quiz sets' });
+    }
+  });
+
+  app.post('/api/quiz-sets', async (req, res) => {
+    try {
+      const { chapterId, title, gptSourceJson, totalQuestions, isActive } = req.body;
+      if (!chapterId || !title) {
+        return res.status(400).json({ message: 'chapterId and title required' });
+      }
+      const quizSet = await storage.createQuizSet({
+        chapterId,
+        title,
+        gptSourceJson,
+        totalQuestions,
+        isActive,
+        createdBy: null,
+      });
+      res.status(201).json({ quizSet });
+    } catch (error) {
+      console.error('Create quiz set error:', error);
+      res.status(500).json({ message: 'Error creating quiz set' });
+    }
+  });
+
+  app.post('/api/quiz-sets/:id/questions', async (req, res) => {
+    try {
+      const setId = Number(req.params.id);
+      const { questionIds, quizSetId } = req.body;
+      if (!Array.isArray(questionIds) || questionIds.length === 0) {
+        return res.status(400).json({ message: 'questionIds required' });
+      }
+      await storage.addQuestionsToSet(setId, questionIds);
+      res.status(201).json({ success: true });
+    } catch (error) {
+      console.error('Add questions error:', error);
+      res.status(500).json({ message: 'Error adding questions to set' });
+    }
+  });
+
   // Import questions endpoint
   app.post('/api/import/questions', async (req, res) => {
     try {
@@ -350,7 +429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Question IDs are required" });
       }
 
-      const attempt = await storage.startAttempt(userId, questionIds);
+      const attempt = await storage.startAttempt(userId, questionIds, quizSetId);
 
       // Get questions for the attempt
       const questions = await Promise.all(
@@ -478,14 +557,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // For simplicity in our demo, allow guest mode without authentication
       const userId = req.body.user?.userId || 1; // Use user ID if authenticated, or default to 1
-      const { questionIds, score, answers } = req.body;
+      const { questionIds, score, answers, quizSetId } = req.body;
       
       if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
         return res.status(400).json({ message: "Question IDs are required" });
       }
       
       // Create a new attempt
-      const attempt = await storage.startAttempt(userId, questionIds);
+      const attempt = await storage.startAttempt(userId, questionIds, quizSetId);
       
       // Record all answers
       if (answers && Array.isArray(answers)) {
