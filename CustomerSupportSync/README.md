@@ -8,8 +8,9 @@ This application includes an Express-based API with a React front-end.
 npm install
 npm run dev
 ```
-
-This starts the API and React client on port 5000.
+If `DATABASE_URL` is set the full MySQL-backed API will start. Otherwise a
+simpler in-memory server runs using the questions JSON file. In either case the
+client is served on port 5000.
 
 ## Production Build
 
