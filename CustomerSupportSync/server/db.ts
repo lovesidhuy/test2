@@ -1,23 +1,23 @@
-import mysql from 'mysql2/promise';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/mysql2';
-import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
+
+
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import ws from 'ws';
 import * as schema from '../shared/schema';
 
-let dbInstance: ReturnType<typeof drizzle> | ReturnType<typeof drizzleSqlite>;
+// Required for Neon database on Node.js
+neonConfig.webSocketConstructor = ws;
 
-if (process.env.DATABASE_URL) {
-  // MySQL connection for production or if a URL is provided
-  const pool = mysql.createPool(process.env.DATABASE_URL);
-  dbInstance = drizzle(pool, { schema, mode: 'default' });
-  console.log('MySQL connection established');
-} else {
-  // Fallback to in-memory SQLite for quick start in development
-  const sqlite = new Database(':memory:');
-  dbInstance = drizzleSqlite(sqlite, { schema, mode: 'default' });
-  console.log('Using in-memory SQLite database');
+// Check if the DATABASE_URL environment variable is set
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is not set');
 }
 
-// Cast to any to avoid TypeScript issues when switching between
-// MySQL and SQLite implementations at runtime.
-export const db: any = dbInstance;
+// Create a connection pool
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Create a drizzle client
+export const db = drizzle(pool, { schema });
+
+console.log('Database connection established successfully');
+
