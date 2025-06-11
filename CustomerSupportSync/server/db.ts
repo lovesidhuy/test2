@@ -1,4 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+// Cast to any to avoid TypeScript issues when switching between
+// MySQL and SQLite implementations at runtime.
+export const db: any = dbInstance;
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 import * as schema from '../shared/schema';

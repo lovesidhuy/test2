@@ -347,7 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // For simplicity in our demo, allow guest mode without authentication
       const userId = req.body.user?.userId || 1; // Use user ID if authenticated, or default to 1
-      const { questionIds } = req.body;
+    const { questionIds, quizSetId } = req.body;
 
       if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
         return res.status(400).json({ message: "Question IDs are required" });
