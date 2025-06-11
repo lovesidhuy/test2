@@ -1,0 +1,1102 @@
+// server.js – ES Modules ✅
+import express from 'express';
+import cors from 'cors';
+import Database from 'better-sqlite3';
+import { v4 as uuid } from 'uuid';
+import fs from 'fs'; // ✅ Needed for reading questions.json
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app  = express();
+const db   = new Database('db.sqlite');
+const PORT = process.env.PORT || 3000;
+
+/* ─────────────────────────────────────
+   📦 SQLite Schema: Attempts + Answers
+───────────────────────────────────── */
+db.exec(`
+CREATE TABLE IF NOT EXISTS attempts (
+  id          TEXT PRIMARY KEY,
+  user        TEXT NOT NULL,
+  started_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  finished_at DATETIME
+);
+CREATE TABLE IF NOT EXISTS answers (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  attempt_id  TEXT NOT NULL,
+  qid         TEXT NOT NULL,
+  chosen      INTEGER,
+  correct     INTEGER,
+  answered_at DATETIME,
+  FOREIGN KEY (attempt_id) REFERENCES attempts(id)
+);
+`);
+
+/* ─────────────────────────────────────
+   📁 Middleware
+───────────────────────────────────── */
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+/* ─────────────────────────────────────
+   📄 Load question bank
+───────────────────────────────────── */
+const QUESTIONS = JSON.parse(
+  await fs.promises.readFile(path.join(__dirname, 'public', 'questions.json'), 'utf-8')
+);
+
+/* ─────────────────────────────────────
+   🎮 API Routes
+───────────────────────────────────── */
+
+// 🎯 Start new quiz attempt
+app.post('/api/quiz/start', (req, res) => {
+  const user = req.body?.user || 'guest';
+  const id   = uuid();
+
+  const tx = db.transaction(() => {
+    db.prepare('INSERT INTO attempts (id, user) VALUES (?, ?)').run(id, user);
+    const insert = db.prepare('INSERT INTO answers (attempt_id, qid) VALUES (?, ?)');
+    QUESTIONS.forEach(q => insert.run(id, q.id));
+  });
+  tx();
+
+  res.json({ ok: true, attemptId: id, questions: QUESTIONS });
+});
+
+// ✅ Submit answer for question
+app.post('/api/quiz/:id/answer', (req, res) => {
+  const { id } = req.params;
+  const { qid, chosen, isLast } = req.body;
+
+  const q = QUESTIONS.find(q => q.id === qid);
+  if (!q) return res.status(400).json({ ok: false, error: 'Invalid question ID' });
+
+  const correct = q.answer === chosen ? 1 : 0;
+  db.prepare(`
+    UPDATE answers
+       SET chosen = ?, correct = ?, answered_at = CURRENT_TIMESTAMP
+     WHERE attempt_id = ? AND qid = ?
+  `).run(chosen, correct, id, qid);
+
+  if (isLast) {
+    db.prepare(`UPDATE attempts SET finished_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(id);
+  }
+
+  res.json({ ok: true, correct });
+});
+
+// 📦 Load attempt data
+app.get('/api/quiz/:id', (req, res) => {
+  const { id } = req.params;
+  const rows = db.prepare('SELECT * FROM answers WHERE attempt_id = ?').all(id);
+
+  if (!rows.length) return res.json({ ok: false });
+
+  const merged = QUESTIONS.map(q => {
+    const a = rows.find(r => r.qid === q.id);
+    return { ...q, chosen: a?.chosen ?? null };
+  });
+
+  res.json({ ok: true, attemptId: id, questions: merged });
+});
+
+// 📜 List past attempts
+app.get('/api/attempts', (_, res) => {
+  const rows = db.prepare(`
+    SELECT a.id, a.user, a.started_at, a.finished_at,
+           COUNT(ans.id)    AS total,
+           SUM(ans.correct) AS correct
+      FROM attempts a
+ LEFT JOIN answers ans ON ans.attempt_id = a.id
+  GROUP BY a.id
+  ORDER BY a.started_at DESC
+  `).all();
+
+  res.json({ ok: true, attempts: rows });
+});
+
+// 🧩 Fallback for SPA (index.html)
+app.get('*', (_, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+/* ─────────────────────────────────────
+   🚀 Launch
+───────────────────────────────────── */
+app.listen(PORT, () => {
+  console.log(`✅ Quiz server running → http://localhost:${PORT}`);
+});
+import { S } from './state.js';
+
+export function selectAnswer(idx){
+  const q = S.questions[S.index];
+  S.answers[q.id] = idx;
+  q.chosen = idx;
+  const correct = q.answer === idx;
+  if(correct) S.score++;
+  else if(!S.wrong.find(w=>w.id===q.id)) S.wrong.push({...q});
+  fetch(`/api/quiz/${S.attemptId}/answer`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({qid:q.id,chosen:idx})
+  });
+  return correct;
+}
+export const nextQuestion = ()=> S.index < S.questions.length-1 && ++S.index;
+export const prevQuestion = ()=> S.index > 0 && --S.index;
+export function restart(practiceWrong=false){
+  if(practiceWrong && S.wrong.length) S.questions=[...S.wrong];
+  S.index=0;S.score=0;S.wrong=[];S.reviewMode=false;S.answers={};
+}
+export const enterReviewMode=()=>S.reviewMode=true;
+export const calculateScore=()=>S.questions.filter(q=>q.chosen===q.answer).length;
+import { S } from './state.js';
+import * as UI from './ui.js';
+import * as Logic from './logic.js';
+
+document.addEventListener('DOMContentLoaded', init);
+
+async function init(){
+  initTheme();
+  registerEvents();
+  await ensureUser();
+  const saved=localStorage.getItem('currentAttemptId');
+  if(saved && await resume(saved)) return;
+  startNew();
+}
+
+function initTheme(){
+  const t=localStorage.getItem('quizTheme')||'light';
+  S.theme=t;document.body.classList.toggle('dark',t==='dark');
+  UI.$('#toggle-theme').textContent=t==='light'?'🌙':'☀️';
+}
+
+function registerEvents(){
+  UI.$('#check').onclick=()=>{
+    const sel=UI.$('input[name="option"]:checked');
+    if(!sel) return alert('Pick an answer!');
+    const ok=Logic.selectAnswer(+sel.value);
+    UI.showResult(ok,S.questions[S.index]);
+  };
+  UI.$('#next').onclick=()=>{Logic.nextQuestion()&&UI.renderQuestion();};
+  UI.$('#prev').onclick=()=>{Logic.prevQuestion()&&UI.renderQuestion();};
+  UI.$('#review-btn').onclick=()=>{Logic.enterReviewMode();UI.renderReview();};
+  UI.$('#restart').onclick=()=>{localStorage.removeItem('currentAttemptId');startNew();};
+  UI.$('#practice-wrong').onclick=()=>{Logic.restart(true);UI.renderQuestion();};
+  UI.$('#view-attempts').onclick=showAttempts;
+  UI.$('#new-attempt').onclick=()=>{UI.$('#attempts-view').style.display='none';startNew();};
+  UI.$('#toggle-theme').onclick=toggleTheme;
+  document.body.addEventListener('click',e=>{
+    if(e.target.classList.contains('review-attempt-btn')) loadAttempt(e.target.dataset.id);
+  });
+}
+
+function toggleTheme(){
+  S.theme=S.theme==='light'?'dark':'light';
+  document.body.classList.toggle('dark',S.theme==='dark');
+  UI.$('#toggle-theme').textContent=S.theme==='light'?'🌙':'☀️';
+  localStorage.setItem('quizTheme',S.theme);
+}
+
+async function ensureUser(){
+  const saved=localStorage.getItem('quizUser');
+  if(saved){S.user=saved;return;}
+  return new Promise(res=>{
+    const m=UI.$('#user-modal');m.style.display='flex';
+    UI.$('#start-quiz').onclick=()=>{
+      const u=UI.$('#username').value.trim()||'guest';
+      S.user=u;localStorage.setItem('quizUser',u);m.style.display='none';res();
+    };
+  });
+}
+
+async function resume(id){
+  try{
+    const d=await fetchJson('/api/quiz/'+id);
+    if(!d.ok) throw 0;
+    Object.assign(S,{attemptId:id,questions:d.questions,index:0});
+    S.questions.forEach(q=>{if(q.chosen!=null)S.answers[q.id]=q.chosen;});
+    UI.renderQuestion();return true;
+  }catch{return false;}
+}
+
+function startNew(){
+  fetchJson('/api/quiz/start','POST',{user:S.user}).then(d=>{
+    Object.assign(S,{attemptId:d.attemptId,questions:d.questions,index:0,score:0,wrong:[],answers:{}});
+    localStorage.setItem('currentAttemptId',S.attemptId);
+    UI.$('#mcq-container').style.display='block';
+    UI.$('#attempts-view').style.display='none';
+    UI.renderQuestion();
+  });
+}
+
+function showAttempts(){
+  UI.$('#mcq-container').style.display='none';
+  UI.$('#attempts-view').style.display='block';
+  fetchJson('/api/attempts').then(d=>UI.renderAttempts(d.attempts));
+}
+
+function loadAttempt(id){
+  fetchJson('/api/quiz/'+id).then(d=>{
+    if(!d.ok) return alert('Not found');
+    Object.assign(S,{attemptId:id,questions:d.questions,index:0});
+    S.score=Logic.calculateScore();
+    S.wrong=S.questions.filter(q=>q.chosen!=null && q.chosen!==q.answer);
+    UI.$('#mcq-container').style.display='block';
+    UI.$('#attempts-view').style.display='none';
+    Logic.enterReviewMode();UI.renderReview();
+  });
+}
+
+function fetchJson(url,method='GET',body){
+  return fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(r=>r.json());
+}
+export const S = {
+  attemptId: null,
+  questions: [],
+  index: 0,
+  score: 0,
+  wrong: [],
+  user: 'guest',
+  theme: 'light',
+  reviewMode: false,
+  answers: {}
+};
+/* ui.js – DOM rendering & UI events */
+import { S } from './state.js';
+import * as Logic from './logic.js';
+
+export const $ = sel => document.querySelector(sel);
+
+/* ─── progress bar helper ─── */
+function updateProgressBar() {
+  const pct = (S.index / S.questions.length) * 100;
+  $('#progress').style.setProperty('--pct', pct + '%');
+}
+
+/* ─── main question renderer ─── */
+export function renderQuestion() {
+  const q = S.questions[S.index];
+
+  $('#question').textContent = q.question;
+  $('#progress').textContent = `Question ${S.index + 1} of ${S.questions.length}`;
+
+  renderDots();
+  updateProgressBar();
+
+  /* options */
+  const ul = $('#options');
+  ul.innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<label>
+        <input type="radio" name="option" value="${i}" ${
+          q.chosen === i ? 'checked' : ''
+        } /> ${opt}
+      </label>`;
+    ul.appendChild(li);
+  });
+
+  updateBtns();
+  $('#result').textContent = '';
+
+  /* if finished, show summary banner */
+  if (S.index === S.questions.length - 1 && q.chosen !== undefined) {
+    showFinish();
+  }
+}
+
+/* ─── dot nav ─── */
+function renderDots() {
+  const c = $('#progress-dots');
+  c.innerHTML = '';
+  S.questions.forEach((q, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    if (i === S.index) d.classList.add('current');
+    if (q.chosen != null)
+      d.classList.add(q.chosen === q.answer ? 'correct' : 'incorrect');
+    d.onclick = () => {
+      S.index = i;
+      renderQuestion();
+    };
+    c.appendChild(d);
+  });
+}
+
+/* ─── result banner after each answer ─── */
+export function showResult(ok, q) {
+  $('#result').textContent = ok
+    ? '✅ Correct!'
+    : `❌ Wrong! Correct: ${q.options[q.answer]}`;
+  $('#result').style.color = ok ? 'green' : 'red';
+  renderDots();
+  updateBtns();
+  if (S.index === S.questions.length - 1) $('#review-btn').style.display = 'inline-block';
+}
+
+/* ─── buttons state ─── */
+function updateBtns() {
+  $('#prev').disabled = S.index === 0;
+  $('#next').disabled = S.index === S.questions.length - 1;
+  $('#check').disabled = S.questions[S.index].chosen != null;
+}
+
+/* ─── final score / review banner ─── */
+function showFinish() {
+  S.review = true;
+  const totalScore = Logic.calculateScore();
+
+  $('#question').textContent = `Your score: ${totalScore} / ${S.questions.length}`;
+  $('#progress').textContent = '';
+  $('#progress-dots').innerHTML = '';
+
+  /* hide normal nav */
+  ['check', 'next', 'prev', 'review-btn'].forEach(id => ($('#' + id).style.display = 'none'));
+
+  /* show post-quiz actions */
+  $('#restart').style.display = 'inline-block';
+  $('#practice-wrong').style.display = S.questions.some(q => q.chosen !== q.answer)
+    ? 'inline-block'
+    : 'none';
+  $('#view-attempts').style.display = 'inline-block';
+}
+
+/* ─── review mode list ─── */
+export function renderReview() {
+  $('#question').textContent = 'Quiz Review';
+  S.score = Logic.calculateScore();
+  $('#progress').textContent = `Score: ${S.score}/${S.questions.length}`;
+  $('#progress-dots').innerHTML = '';
+
+  const cont = $('#options');
+  cont.innerHTML = '';
+  S.questions.forEach((q, idx) => {
+    const div = document.createElement('div');
+    div.innerHTML = `<strong>Q${idx + 1}:</strong> ${q.question}`;
+    const ul = document.createElement('ul');
+
+    q.options.forEach((o, i) => {
+      const li = document.createElement('li');
+      li.textContent = o;
+
+      if (i === q.answer && i === q.chosen) li.style.color = 'green';
+      else if (i === q.answer) li.style.fontWeight = 'bold';
+      else if (i === q.chosen) li.style.color = 'red';
+
+      ul.appendChild(li);
+    });
+    div.appendChild(ul);
+    cont.appendChild(div);
+  });
+
+  ['check', 'next', 'prev', 'review-btn'].forEach(id => ($('#' + id).style.display = 'none'));
+  $('#restart').style.display = 'inline-block';
+  if (S.wrong.length) $('#practice-wrong').style.display = 'inline-block';
+  $('#view-attempts').style.display = 'inline-block';
+}
+
+/* ─── attempts table ─── */
+export function renderAttempts(atts) {
+  const tbody = $('#attempts-table tbody');
+  tbody.innerHTML = '';
+  if (!atts.length) {
+    tbody.innerHTML = '<tr><td colspan="4">No attempts</td></tr>';
+    return;
+  }
+  atts.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${new Date(a.started_at).toLocaleString()}</td>
+      <td>${a.user}</td>
+      <td>${a.correct || 0}/${a.total || 0}</td>
+      <td><button class="review-attempt-btn" data-id="${a.id}">Review</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MCQ Practice App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="mcq-container">
+    <div class="header-bar">
+      <h2 id="question">Loading…</h2>
+      <button id="toggle-theme">🌙</button>
+    </div>
+    <div id="progress"></div>
+    <div id="progress-dots" class="progress-dots"></div>
+    <ul id="options"></ul>
+    <div class="button-group">
+      <button id="prev" disabled>Previous</button>
+      <button id="check">Check Answer</button>
+      <button id="next">Next</button>
+      <button id="review-btn" style="display:none;">Review All</button>
+      <button id="restart" style="display:none;">New Quiz</button>
+      <button id="practice-wrong" style="display:none;">Practice Incorrect</button>
+      <button id="view-attempts" style="display:none;">All Attempts</button>
+    </div>
+    <div id="result"></div>
+    <div id="score"></div>
+  </div>
+
+  <div id="attempts-view" style="display:none;">
+    <h2>Your Quiz Attempts</h2>
+    <table id="attempts-table"><thead>
+        <tr><th>Date</th><th>User</th><th>Score</th><th>Actions</th></tr>
+    </thead><tbody></tbody></table>
+    <button id="new-attempt">Start New Quiz</button>
+  </div>
+
+  <div id="user-modal" class="modal">
+    <div class="modal-content">
+      <h3>Enter Your Name</h3>
+      <input type="text" id="username" placeholder="Your name">
+      <button id="start-quiz">Start Quiz</button>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
+:root {
+    --primary: #63b5ff; /* Brighter, more electric primary blue */
+    --correct: #66BB6A; /* More vibrant green */
+    --incorrect: #EF5350; /* More intense red */
+    --bg-light: #f4f6f8;
+    --text-light: #333;
+    --bg-dark: #12181B; /* Deeper, almost black background */
+    --text-dark: #e0e0e0;
+    --card-dark: #1E272E; /* Darker card background */
+    --border-dark: #37474F; /* Darker, subtle border */
+  }
+  
+  body {
+    font-family: 'Poppins', sans-serif; /* Modern, slightly rounded font */
+    margin: 0;
+    padding: 20px;
+    background-color: var(--bg-light);
+    color: var(--text-light);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  
+  body.dark {
+    background-color: var(--bg-dark);
+    color: var(--text-dark);
+  }
+  
+  #mcq-container {
+    max-width: 580px;
+    width: 95%;
+    background-color: #fff;
+    color: var(--text-light);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .dark #mcq-container {
+    background-color: var(--card-dark);
+    color: var(--text-dark);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); /* More pronounced shadow */
+    border: 1px solid var(--border-dark);
+  }
+  
+  .header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #eee; /* Slightly thicker light border */
+  }
+  
+  .dark .header-bar {
+    border-bottom: 2px solid var(--border-dark); /* Darker, thicker border */
+  }
+  
+  #question {
+    margin: 0;
+    font-size: 1.7em;
+    color: var(--primary); /* Electric blue */
+    line-height: 1.3;
+    font-weight: 600; /* More emphasis */
+  }
+  
+  #toggle-theme {
+    background: none;
+    border: none;
+    font-size: 1.6em;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    outline: none;
+    color: inherit;
+    transition: background-color 0.2s ease;
+  }
+  
+  #toggle-theme:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+  
+  .dark #toggle-theme:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+  
+  #progress {
+    background-color: #e0e0e0;
+    border-radius: 6px;
+    height: 8px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  
+  .dark #progress {
+    background-color: #37474F;
+  }
+  
+  #progress::before {
+    content: '';
+    display: block;
+    background-color: var(--primary);
+    height: 100%;
+    width: 0%;
+    border-radius: 6px;
+    transition: width 0.3s ease-in-out;
+  }
+  
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    justify-content: center;
+  }
+  
+  .dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #ccc;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease;
+  }
+  
+  .dark .dot {
+    background: #546E7A;
+  }
+  
+  .dot:hover {
+    transform: scale(1.15);
+  }
+  
+  .dot.current {
+    background: var(--primary);
+    transform: scale(1.25);
+  }
+  
+  .dot.correct {
+    background: var(--correct); /* Vibrant green */
+  }
+  
+  .dot.incorrect {
+    background: var(--incorrect); /* Intense red */
+  }
+  
+  #options {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 22px;
+  }
+  
+  #options li {
+    background-color: #f9f9f9;
+    color: var(--text-light);
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  }
+  
+  .dark #options li {
+    background-color: var(--card-dark);
+    color: var(--text-dark);
+    border-color: var(--border-dark);
+  }
+  
+  #options li:hover {
+    background-color: #e8f0fe;
+    border-color: var(--primary);
+    transform: scale(1.02);
+  }
+  
+  .dark #options li:hover {
+    background-color: #263238;
+    border-color: var(--primary);
+    transform: scale(1.02);
+  }
+  
+  #options li.selected {
+    background-color: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  
+  #options li.correct {
+    background-color: #e8f5e9; /* Lighter green */
+    color: var(--correct);
+    border-color: var(--correct);
+  }
+  
+  .dark #options li.correct {
+    background-color: #2E7D32; /* Darker vibrant green */
+    color: #e8f5e9;
+    border-color: var(--correct);
+  }
+  
+  #options li.incorrect {
+    background-color: #ffebee; /* Lighter red */
+    color: var(--incorrect);
+    border-color: var(--incorrect);
+  }
+  
+  .dark #options li.incorrect {
+    background-color: #B71C1C; /* Darker intense red */
+    color: #ffebee;
+    border-color: var(--incorrect);
+  }
+  
+  .button-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 22px;
+  }
+  
+  button {
+    cursor: pointer;
+    padding: 12px 22px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 1em;
+    font-weight: 500;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.1s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  button:hover {
+    background-color: #4a9af7;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  }
+  
+  button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  button:disabled {
+    background: #78909C; /* Muted blue-grey */
+    color: #cfd8dc; /* Light grey */
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  
+  .dark button {
+    background: var(--primary); /* Keep primary for dark mode buttons */
+    color: #fff;
+  }
+  
+  .dark button:disabled {
+    background: #455A64;
+    color: #90A4AE;
+  }
+  
+  #result {
+    margin-top: 18px;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  #result.correct {
+    background-color: #e8f5e9;
+    color: var(--correct);
+    border: 1px solid var(--correct);
+  }
+  
+  .dark #result.correct {
+    background-color: #2E7D32;
+    color: #e8f5e9;
+    border: 1px solid var(--correct);
+  }
+  
+  #result.incorrect {
+    background-color: #ffebee;
+    color: var(--incorrect);
+    border: 1px solid var(--incorrect);
+  }
+  
+  .dark #result.incorrect {
+    background-color: #B71C1C;
+    color: #ffebee;
+    border: 1px solid var(--incorrect);
+  }
+  
+  #score {
+    margin-top: 18px;
+    font-size: 1.15em;
+    font-weight: 600;
+    text-align: center;
+    color: inherit;
+  }
+  
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .modal-content {
+    background-color: #fff;
+    color: var(--text-light);
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    max-width: 90%;
+    width: 400px;
+  }
+  
+  .dark .modal-content {
+    background-color: var(--card-dark);
+    color: var(--text-dark);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  }
+  
+  .modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    color: var(--primary);
+    font-size: 1.4em;
+    font-weight: 600;
+  }
+  
+  .modal-content input[type="text"] {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-bottom: 18px;
+    width: 80%;
+    max-width: 300px;
+    font-size: 1em;
+    color: inherit;
+    background-color: inherit;
+  }
+  
+  .dark .modal-content input[type="text"] {
+    border-color: var(--border-dark);
+    background-color: #263238;
+  }
+  
+  .modal-content button {
+    /* Inherits button styles */
+    margin-top: 12px;
+  }
+  
+  #attempts-view {
+    max-width: 650px;
+    margin: 30px auto;
+    background-color: #fff;
+    color: var(--text-light);
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  }
+  
+  .dark #attempts-view {
+    background-color: var(--card-dark);
+    color: var(--text-dark);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-dark);
+  }
+  
+  #attempts-view h2 {
+    color: var(--primary);
+    margin-top: 0;
+    margin-bottom: 18px;
+    text-align: center;
+    font-size: 1.5em;
+    font-weight: 600;
+  }
+  
+  #attempts-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  
+  #attempts-table th,
+  #attempts-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+  
+  .dark #attempts-table th,
+  .dark #attempts-table td {
+    border-bottom: 1px solid var(--border-dark);
+  }
+  
+  #attempts-table th {
+    background-color: #f9f9f9;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  .dark #attempts-table th {
+    background-color: #263238;
+    color: #fff;
+  }
+  
+  #attempts-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  #new-attempt {
+    display: block;
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    font-weight: 500;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    #mcq-container {
+      margin-top: 15px;
+      padding: 20px;
+    }
+  
+    #question {
+      font-size: 1.5em;
+    }
+  
+    .button-group {
+      margin-top: 18px;
+    }
+  
+    button {
+      padding: 10px 18px;
+      font-size: 0.9em;
+    }
+  
+    .modal-content {
+      padding: 20px;
+    }
+  
+    #attempts-view {
+      margin-top: 15px;
+      padding: 20px;
+    }
+  
+    #attempts-table th,
+    #attempts-table td {
+      padding: 8px 10px;
+      font-size: 0.9em;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .button-group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    button {
+      margin-bottom: 8px;
+    }
+  
+    .modal-content {
+      padding: 15px;
+    }
+  
+    .modal-content h3 {
+      font-size: 1.3em;
+    }
+  
+    .modal-content input[type="text"] {
+      font-size: 0.9em;
+    }
+  }[
+  {
+    "id": "q1",
+    "question": "Which 802.11 MAC management frame advertises network presence and provides time‑synchronisation information to clients?",
+    "options": ["Association Request", "Beacon", "Probe Request", "Authentication Frame"],
+    "answer": 1
+  },
+  {
+    "id": "q2",
+    "question": "In an infrastructure BSS, the BSSID is normally equal to the:",
+    "options": ["SSID of the WLAN", "MAC address of the access‑point’s radio interface", "First client station that joined the cell", "VLAN ID assigned to the WLAN"],
+    "answer": 1
+  },
+  {
+    "id": "q3",
+    "question": "What is the maximum character length of a valid SSID under 802.11 specifications?",
+    "options": ["16 characters", "24 characters", "32 characters", "48 characters"],
+    "answer": 2
+  },
+  {
+    "id": "q4",
+    "question": "During passive scanning, a client station discovers nearby BSSs by:",
+    "options": ["Transmitting probe requests on all channels", "Listening for beacons on each channel", "Sending association requests to APs sequentially", "Broadcasting ARP packets to detect APs"],
+    "answer": 1
+  },
+  {
+    "id": "q5",
+    "question": "Which 802.11 authentication method relies only on the SSID and does not require a cryptographic challenge–response?",
+    "options": ["Shared‑Key", "Open System", "SAE (Simultaneous Authentication of Equals)", "EAP‑TLS"],
+    "answer": 1
+  },
+  {
+    "id": "q6",
+    "question": "Place the following infrastructure‑mode join steps in the correct sequence: 1. Association 2. Passive/active scan 3. Data exchange 4. Authentication",
+    "options": ["2 → 4 → 1 → 3", "2 → 1 → 4 → 3", "4 → 2 → 1 → 3", "2 → 4 → 3 → 1"],
+    "answer": 0
+  },
+  {
+    "id": "q7",
+    "question": "Which field in a beacon frame tells a dozing client that the AP has buffered data waiting?",
+    "options": ["CF‑Poll Request", "Traffic Indication Map (TIM)", "DS Parameter Set", "Supported Rates"],
+    "answer": 1
+  },
+  {
+    "id": "q8",
+    "question": "A station that is authenticated with multiple APs but associated with only one is in which 802.11 state?",
+    "options": ["Unauthenticated & Unassociated", "Authenticated & Unassociated", "Authenticated & Associated", "Reassociated"],
+    "answer": 1
+  },
+  {
+    "id": "q9",
+    "question": "The process whereby a client hands off from one AP to another inside an ESS without losing network connectivity is called:",
+    "options": ["Probing", "Bridging", "Roaming", "Load‑balancing"],
+    "answer": 2
+  },
+  {
+    "id": "q10",
+    "question": "In power‑save mode, which bit in the frame control field of every data frame indicates the station’s current power state?",
+    "options": ["Retry bit", "More Data bit", "Power Management bit", "Protected Frame bit"],
+    "answer": 2
+  },
+  {
+    "id": "q11",
+    "question": "When an AP uses load balancing algorithms, client stations typically choose an AP based on:",
+    "options": ["The SSID with the strongest encryption", "The AP advertising the lowest beacon interval", "Signal strength and AP utilisation metrics", "The MAC address with the lowest numerical value"],
+    "answer": 2
+  },
+  {
+    "id": "q12",
+    "question": "Which statement best describes an Independent Basic Service Set (IBSS)?",
+    "options": ["Contains one AP and multiple clients", "Supports central bridging to a wired LAN", "Operates ad‑hoc with no AP and no distribution system", "Requires 802.1X authentication for all traffic"],
+    "answer": 2
+  },
+  {
+    "id": "q13",
+    "question": "In shared‑key authentication with WEP, which step immediately follows the AP sending a random challenge text to the client?",
+    "options": ["Client sends association request", "Client encrypts the challenge with the shared key and returns it", "AP distributes a new pairwise master key", "Client listens for the next beacon"],
+    "answer": 1
+  },
+  {
+    "id": "q14",
+    "question": "Which 802.11 concept combines two or more BSSs that share the same SSID to provide seamless coverage?",
+    "options": ["Portal", "Distribution System", "Extended Service Set", "Virtual Cell"],
+    "answer": 2
+  },
+  {
+    "id": "q15",
+    "question": "A probe request containing an SSID field set to null (wild‑card) instructs APs to:",
+    "options": ["Ignore the probe request", "Respond only if they are using open authentication", "Respond regardless of their configured SSID", "Deauthenticate the probing client"],
+    "answer": 2
+  },
+  {
+    "id": "q16",
+    "question": "Which of the following is NOT a primary service provided by the 802.11 wireless adapter MAC sub‑layer?",
+    "options": ["Delivery of data", "Authentication", "Privacy (encryption)", "Channel bonding"],
+    "answer": 3
+  },
+  {
+    "id": "q17",
+    "question": "In an ESS with three APs sharing the SSID “CampusWiFi,” how many unique BSSIDs will exist?",
+    "options": ["1", "2", "3", "6"],
+    "answer": 2
+  },
+  {
+    "id": "q18",
+    "question": "During active scanning, why does the station continue to send probe requests even after associating?",
+    "options": ["To update its DHCP lease more quickly", "To discover backup APs for roaming", "To advertise its presence to neighbouring clients", "To reduce latency by pre‑authenticating with the RADIUS server"],
+    "answer": 1
+  },
+  {
+    "id": "q19",
+    "question": "Which distribution‑system component is responsible purely for software forwarding and services between APs inside the same ESS?",
+    "options": ["DSM (Distribution System Medium)", "DSS (Distribution System Services)", "Portal Bridge", "LAN Switch"],
+    "answer": 1
+  },
+  {
+    "id": "q20",
+    "question": "The 802.11 power‑save TIM bitmap uses which identifier to mark buffered frames destined for each sleeping station?",
+    "options": ["VLAN ID", "Association ID (AID)", "BSSID index", "DTIM count"],
+    "answer": 1
+  }
+]
+[
+  {
+    "id": "p1",
+    "question": "What is the primary role of a beacon frame in 802.11 networks?",
+    "options": [
+      "Initiate authentication process",
+      "Advertise network presence and synchronize clients",
+      "Deliver data from AP to client",
+      "Respond to probe requests"
+    ],
+    "answer": 1
+  },
+  {
+    "id": "p2",
+    "question": "What does SSID stand for in wireless networking?",
+    "options": [
+      "Service Subscription Identifier",
+      "Service Set Identifier",
+      "Static Signal Identifier",
+      "Set Signal Identifier"
+    ],
+
