@@ -1,5 +1,4 @@
 import express, { Request, Response, NextFunction } from "express";
-
 import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
 import fs from "fs";
@@ -60,39 +59,34 @@ try {
 // Get all questions (optionally filtered)
 app.get('/api/questions', (req, res) => {
   let filteredQuestions = [...QUESTIONS];
-  
-  // Apply category filter if provided
+
   if (req.query.category) {
     filteredQuestions = filteredQuestions.filter(
       q => q.category === parseInt(req.query.category as string)
     );
   }
-  
-  // Apply difficulty filter if provided
+
   if (req.query.difficulty) {
     filteredQuestions = filteredQuestions.filter(
       q => q.difficulty === req.query.difficulty
     );
   }
-  
+
   res.json({ questions: filteredQuestions });
 });
 
 // Get categories derived from questions
 app.get('/api/categories', (req, res) => {
-  // Extract unique categories from questions
   const categoryIds = Array.from(
     new Set(QUESTIONS.map(q => q.category))
   ).filter(Boolean);
-  
-  const categories = categoryIds.map(id => {
-    return {
-      id,
-      name: getCategoryName(id as number),
-      color: getCategoryColor(id as number)
-    };
-  });
-  
+
+  const categories = categoryIds.map(id => ({
+    id,
+    name: getCategoryName(id as number),
+    color: getCategoryColor(id as number)
+  }));
+
   res.json({ categories });
 });
 
@@ -100,27 +94,26 @@ app.get('/api/categories', (req, res) => {
 app.post('/api/quiz/start', (req, res) => {
   const user = req.body.username || 'guest';
   const questionIds = req.body.questionIds || QUESTIONS.map(q => q.id);
-  
+
   const attemptId = uuid();
   const startedAt = new Date().toISOString();
-  
+
   attempts[attemptId] = {
     id: attemptId,
     user,
     startedAt,
     totalQuestions: questionIds.length
   };
-  
+
   answers[attemptId] = [];
-  
-  // Get the full questions but remove answers to prevent cheating
+
   const quizQuestions = QUESTIONS
     .filter(q => questionIds.includes(q.id))
     .map(q => {
       const { answer, explanation, ...rest } = q;
       return rest;
     });
-  
+
   res.json({ attemptId, questions: quizQuestions });
 });
 
@@ -128,33 +121,30 @@ app.post('/api/quiz/start', (req, res) => {
 app.post('/api/quiz/:attemptId/answer', (req, res) => {
   const { attemptId } = req.params;
   const { questionId, chosenAnswer, timeSpent, isLast } = req.body;
-  
+
   if (!attempts[attemptId]) {
     return res.status(404).json({ message: 'Attempt not found' });
   }
-  
-  // Find the question
+
   const question = QUESTIONS.find(q => q.id === questionId);
-  
+
   if (!question) {
     return res.status(400).json({ message: 'Question not found' });
   }
-  
+
   const correct = question.answer === chosenAnswer;
-  
-  // Store answer
+
   answers[attemptId].push({
     questionId,
     chosenAnswer,
     correct,
     timeSpent: timeSpent || 0
   });
-  
-  // If this is the last question, update the attempt with completion data
+
   if (isLast) {
     const correctAnswers = answers[attemptId].filter(a => a.correct).length;
     const score = Math.round((correctAnswers / attempts[attemptId].totalQuestions) * 100);
-    
+
     attempts[attemptId] = {
       ...attempts[attemptId],
       finishedAt: new Date().toISOString(),
@@ -162,7 +152,7 @@ app.post('/api/quiz/:attemptId/answer', (req, res) => {
       timeSpent: answers[attemptId].reduce((sum, a) => sum + (a.timeSpent || 0), 0)
     };
   }
-  
+
   res.json({
     correct,
     correctAnswer: question.answer,
@@ -174,12 +164,11 @@ app.post('/api/quiz/:attemptId/answer', (req, res) => {
 app.get('/api/quiz/:attemptId', (req, res) => {
   const { attemptId } = req.params;
   const attempt = attempts[attemptId];
-  
+
   if (!attempt) {
     return res.status(404).json({ message: 'Attempt not found' });
   }
-  
-  // For review, include the answers and full question data
+
   const attemptAnswers = answers[attemptId] || [];
   const questions = QUESTIONS
     .filter(q => attemptAnswers.some(a => a.questionId === q.id))
@@ -192,7 +181,7 @@ app.get('/api/quiz/:attemptId', (req, res) => {
         timeSpent: answer ? answer.timeSpent : undefined
       };
     });
-  
+
   res.json({ attempt, questions });
 });
 
@@ -230,11 +219,11 @@ function getCategoryName(id: number): string {
 
 function getCategoryColor(id: number): string {
   const colors: Record<number, string> = {
-    1: '#f7df1e', // JavaScript yellow
-    2: '#61dafb', // React blue
-    3: '#3776ab', // Python blue
-    4: '#4caf50', // Green for Data Structures
-    5: '#ff5722'  // Orange for Algorithms
+    1: '#f7df1e',
+    2: '#61dafb',
+    3: '#3776ab',
+    4: '#4caf50',
+    5: '#ff5722'
   };
   return colors[id] || `#${Math.floor(Math.random()*16777215).toString(16)}`;
 }
@@ -247,13 +236,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 (async () => {
-
-  // Create HTTP server
   const server = createServer(app);
-
-  // Importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
 
   if (app.get("env") === "development") {
     await setupVite(app, server);
@@ -261,16 +244,12 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     serveStatic(app);
   }
 
-
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = 5000;
   server.listen({
     port,
     host: "0.0.0.0",
-    //@ts-ignore
-    reusePort: true,
+    // @ts-ignore
+    reusePort: true
   }, () => {
     log(`serving on port ${port}`);
   });

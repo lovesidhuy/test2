@@ -1,10 +1,12 @@
 
+
 import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 
 export const users = pgTable("users", {
+
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
@@ -24,6 +26,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Categories for questions
+
 
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
@@ -60,6 +63,7 @@ export type Subject = typeof subjects.$inferSelect;
 
 
 
+
 // Question model with difficulty, category, and subject
 export const questions = pgTable("questions", {
   id: serial("id").primaryKey(),
@@ -69,6 +73,7 @@ export const questions = pgTable("questions", {
   explanation: text("explanation"), // Explanation of the answer
   category: integer("category").references(() => categories.id),
   subject: integer("subject").references(() => subjects.id),
+
   difficulty: text("difficulty").notNull(), // easy, medium, hard
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -87,6 +92,7 @@ export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type Question = typeof questions.$inferSelect;
 
 
+
 // Quiz attempts
 export const attempts = pgTable("attempts", {
   id: serial("id").primaryKey(),
@@ -96,6 +102,7 @@ export const attempts = pgTable("attempts", {
   score: integer("score"),
   totalQuestions: integer("total_questions").notNull(),
   timeSpent: integer("time_spent"), // in seconds
+
 });
 
 export const insertAttemptSchema = createInsertSchema(attempts).pick({
@@ -156,6 +163,7 @@ export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
 export type UserStats = typeof userStats.$inferSelect;
 
 // Spaced repetition for user learning
+
 
 export const reviewSchedule = pgTable("review_schedule", {
   id: serial("id").primaryKey(),
