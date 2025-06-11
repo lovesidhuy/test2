@@ -3,9 +3,7 @@ import {
   users, users as usersTable, 
   categories, categories as categoriesTable,
   subjects, subjects as subjectsTable,
-  chapters, chapters as chaptersTable,
-  quizSets, quizSets as quizSetsTable,
-  setQuestions,
+
   questions, questions as questionsTable,
   attempts, attempts as attemptsTable,
   answers, answers as answersTable,
@@ -14,8 +12,7 @@ import {
   type User, type InsertUser,
   type Category, type InsertCategory,
   type Subject, type InsertSubject,
-  type Chapter, type InsertChapter,
-  type QuizSet, type InsertQuizSet,
+
   type Question, type InsertQuestion,
   type Attempt, type InsertAttempt,
   type Answer, type InsertAnswer,
@@ -41,16 +38,7 @@ export interface IStorage {
   getSubjectById(id: number): Promise<Subject | undefined>;
   createSubject(subject: InsertSubject): Promise<Subject>;
 
-  // Chapters
-  getChapters(subjectId?: number): Promise<Chapter[]>;
-  getChapterById(id: number): Promise<Chapter | undefined>;
-  createChapter(chapter: InsertChapter): Promise<Chapter>;
 
-  // Quiz sets
-  getQuizSets(chapterId?: number): Promise<QuizSet[]>;
-  getQuizSetById(id: number): Promise<QuizSet | undefined>;
-  createQuizSet(set: InsertQuizSet): Promise<QuizSet>;
-  addQuestionsToSet(setId: number, questionIds: number[]): Promise<void>;
   
   // Questions
   getQuestions(filters?: {category?: number, difficulty?: string}): Promise<Question[]>;
@@ -60,7 +48,10 @@ export interface IStorage {
   deleteQuestion(id: number): Promise<boolean>;
   
   // Quiz attempts
-  startAttempt(userId: number, questionIds: number[], quizSetId?: number): Promise<Attempt>;
+
+  startAttempt(userId: number, questionIds: number[]): Promise<Attempt>;
+
+
   getAttempt(id: number): Promise<Attempt | undefined>;
   getUserAttempts(userId: number): Promise<Attempt[]>;
   finishAttempt(id: number, score: number, timeSpent: number): Promise<Attempt | undefined>;
@@ -135,57 +126,11 @@ export class DatabaseStorage implements IStorage {
       .values(subject)
       .returning();
 
+
     return createdSubject;
   }
 
-  async getChapters(subjectId?: number): Promise<Chapter[]> {
-    let query = db.select().from(chaptersTable);
-    if (subjectId !== undefined) {
-      query = query.where(eq(chaptersTable.subjectId, subjectId));
-    }
-    return await query;
-  }
 
-  async getChapterById(id: number): Promise<Chapter | undefined> {
-    const [chapter] = await db
-      .select()
-      .from(chaptersTable)
-      .where(eq(chaptersTable.id, id));
-    return chapter;
-  }
-
-  async createChapter(chapter: InsertChapter): Promise<Chapter> {
-    const [created] = await db.insert(chaptersTable).values(chapter).returning();
-    return created;
-  }
-
-  async getQuizSets(chapterId?: number): Promise<QuizSet[]> {
-    let query = db.select().from(quizSetsTable);
-    if (chapterId !== undefined) {
-      query = query.where(eq(quizSetsTable.chapterId, chapterId));
-    }
-    return await query;
-  }
-
-  async getQuizSetById(id: number): Promise<QuizSet | undefined> {
-    const [set] = await db
-      .select()
-      .from(quizSetsTable)
-      .where(eq(quizSetsTable.id, id));
-    return set;
-  }
-
-  async createQuizSet(set: InsertQuizSet): Promise<QuizSet> {
-    const [created] = await db.insert(quizSetsTable).values(set).returning();
-    return created;
-  }
-
-  async addQuestionsToSet(setId: number, questionIds: number[]): Promise<void> {
-    for (let i = 0; i < questionIds.length; i++) {
-      await db.insert(setQuestions)
-        .values({ quizSetId: setId, questionId: questionIds[i], position: i });
-    }
-  }
 
   async getQuestions(filters?: {category?: number, difficulty?: string, subject?: number}): Promise<Question[]> {
     let query = db.select().from(questionsTable);
@@ -250,11 +195,13 @@ export class DatabaseStorage implements IStorage {
     return result.count > 0;
   }
 
-  async startAttempt(userId: number, questionIds: number[], quizSetId?: number): Promise<Attempt> {
+
+  async startAttempt(userId: number, questionIds: number[]): Promise<Attempt> {
     const [attempt] = await db.insert(attemptsTable)
       .values({
         userId,
-        quizSetId: quizSetId ?? null,
+
+
         totalQuestions: questionIds.length
       })
       .returning();

@@ -66,7 +66,8 @@ function SmartQuiz() {
   const fetchSubjects = async () => {
     try {
       setIsLoading(true);
-      const response = await apiRequest('GET', '/api/subjects');
+
+      const response = await apiRequest('/api/subjects', { method: 'GET' });
       if (response.subjects && response.subjects.length > 0) {
         setSubjects(response.subjects);
         setCurrentSubject(response.subjects[0].id);
@@ -87,7 +88,8 @@ function SmartQuiz() {
   const fetchQuestions = async (subjectId) => {
     try {
       setIsLoading(true);
-      const response = await apiRequest('GET', '/api/questions?subject=' + subjectId);
+
+      const response = await apiRequest('/api/questions?subject=' + subjectId, { method: 'GET' });
       if (response.questions) {
         // Shuffle questions for the quiz
         const shuffledQuestions = [...response.questions].sort(() => Math.random() - 0.5);
@@ -108,7 +110,8 @@ function SmartQuiz() {
   // Fetch attempt history
   const fetchAttempts = async () => {
     try {
-      const response = await apiRequest('GET', '/api/attempts');
+
+      const response = await apiRequest('/api/attempts', { method: 'GET' });
       if (response.attempts) {
         setAttemptHistory(response.attempts);
       }
@@ -190,7 +193,12 @@ function SmartQuiz() {
         }))
       };
       
-      await apiRequest('POST', '/api/quiz/finish', attemptData);
+
+      await apiRequest('/api/quiz/finish', {
+        method: 'POST',
+        data: attemptData
+      });
+
       
       setQuestions(questionsWithAnswers);
       setQuizCompleted(true);
@@ -259,9 +267,13 @@ function SmartQuiz() {
           }
           
           // Send to server
-          const response = await apiRequest('POST', '/api/import/questions', {
-            questions,
-            subjectId: parseInt(importSubject)
+
+          const response = await apiRequest('/api/import/questions', {
+            method: 'POST',
+            data: {
+              questions,
+              subjectId: parseInt(importSubject)
+            }
           });
           
           setImportDialogOpen(false);
@@ -309,7 +321,11 @@ function SmartQuiz() {
     try {
       setIsLoading(true);
       
-      const response = await apiRequest('POST', '/api/subjects', { name });
+
+      const response = await apiRequest('/api/subjects', {
+        method: 'POST',
+        data: { name }
+      });
       
       if (response.subject) {
         fetchSubjects();
