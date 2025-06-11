@@ -51,6 +51,7 @@ export interface IStorage {
 
   startAttempt(userId: number, questionIds: number[]): Promise<Attempt>;
 
+
   getAttempt(id: number): Promise<Attempt | undefined>;
   getUserAttempts(userId: number): Promise<Attempt[]>;
   finishAttempt(id: number, score: number, timeSpent: number): Promise<Attempt | undefined>;
@@ -125,9 +126,10 @@ export class DatabaseStorage implements IStorage {
       .values(subject)
       .returning();
 
-    
+
     return createdSubject;
   }
+
 
 
   async getQuestions(filters?: {category?: number, difficulty?: string, subject?: number}): Promise<Question[]> {
@@ -194,11 +196,11 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-
   async startAttempt(userId: number, questionIds: number[]): Promise<Attempt> {
     const [attempt] = await db.insert(attemptsTable)
       .values({
         userId,
+
 
         totalQuestions: questionIds.length
       })

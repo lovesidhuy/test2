@@ -66,6 +66,7 @@ function SmartQuiz() {
   const fetchSubjects = async () => {
     try {
       setIsLoading(true);
+
       const response = await apiRequest('/api/subjects', { method: 'GET' });
       if (response.subjects && response.subjects.length > 0) {
         setSubjects(response.subjects);
@@ -87,6 +88,7 @@ function SmartQuiz() {
   const fetchQuestions = async (subjectId) => {
     try {
       setIsLoading(true);
+
       const response = await apiRequest('/api/questions?subject=' + subjectId, { method: 'GET' });
       if (response.questions) {
         // Shuffle questions for the quiz
@@ -108,6 +110,7 @@ function SmartQuiz() {
   // Fetch attempt history
   const fetchAttempts = async () => {
     try {
+
       const response = await apiRequest('/api/attempts', { method: 'GET' });
       if (response.attempts) {
         setAttemptHistory(response.attempts);
@@ -190,10 +193,12 @@ function SmartQuiz() {
         }))
       };
       
+
       await apiRequest('/api/quiz/finish', {
         method: 'POST',
         data: attemptData
       });
+
       
       setQuestions(questionsWithAnswers);
       setQuizCompleted(true);
@@ -262,6 +267,7 @@ function SmartQuiz() {
           }
           
           // Send to server
+
           const response = await apiRequest('/api/import/questions', {
             method: 'POST',
             data: {
@@ -315,6 +321,7 @@ function SmartQuiz() {
     try {
       setIsLoading(true);
       
+
       const response = await apiRequest('/api/subjects', {
         method: 'POST',
         data: { name }

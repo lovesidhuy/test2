@@ -6,6 +6,7 @@ import { z } from "zod";
 
 export const users = pgTable("users", {
 
+
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
@@ -27,6 +28,7 @@ export type User = typeof users.$inferSelect;
 // Categories for questions
 
 export const categories = pgTable("categories", {
+
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   color: text("color").notNull(),
@@ -42,8 +44,8 @@ export type Category = typeof categories.$inferSelect;
 
 // Subjects for organizing question sets
 
-
 export const subjects = pgTable("subjects", {
+
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -71,6 +73,7 @@ export const questions = pgTable("questions", {
   category: integer("category").references(() => categories.id),
   subject: integer("subject").references(() => subjects.id),
 
+
   difficulty: text("difficulty").notNull(), // easy, medium, hard
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -91,6 +94,7 @@ export type Question = typeof questions.$inferSelect;
 
 
 
+
 // Quiz attempts
 export const attempts = pgTable("attempts", {
   id: serial("id").primaryKey(),
@@ -100,6 +104,7 @@ export const attempts = pgTable("attempts", {
   score: integer("score"),
   totalQuestions: integer("total_questions").notNull(),
   timeSpent: integer("time_spent"), // in seconds
+
 
 });
 
@@ -112,7 +117,7 @@ export const insertAttemptSchema = createInsertSchema(attempts).pick({
 export type InsertAttempt = z.infer<typeof insertAttemptSchema>;
 export type Attempt = typeof attempts.$inferSelect;
 
-// Quiz answers for each attempt
+
 
 
 export const answers = pgTable("answers", {
@@ -122,6 +127,7 @@ export const answers = pgTable("answers", {
   chosenAnswer: integer("chosen_answer"),
   correct: boolean("correct"),
   timeSpent: integer("time_spent"), // in seconds
+
   answeredAt: timestamp("answered_at"),
 });
 
@@ -165,6 +171,7 @@ export type UserStats = typeof userStats.$inferSelect;
 // Spaced repetition for user learning
 
 
+
 export const reviewSchedule = pgTable("review_schedule", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -173,6 +180,7 @@ export const reviewSchedule = pgTable("review_schedule", {
   interval: integer("interval").default(1), // days until next review
   easeFactor: integer("ease_factor").default(250), // multiplier for spaced repetition
   consecutive: integer("consecutive").default(0), // consecutive correct answers
+
 });
 
 export const insertReviewScheduleSchema = createInsertSchema(reviewSchedule).pick({
