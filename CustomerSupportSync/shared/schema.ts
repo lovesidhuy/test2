@@ -1,5 +1,4 @@
 
-
 import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -27,7 +26,6 @@ export type User = typeof users.$inferSelect;
 
 // Categories for questions
 
-
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
@@ -44,6 +42,7 @@ export type Category = typeof categories.$inferSelect;
 
 // Subjects for organizing question sets
 
+
 export const subjects = pgTable("subjects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -59,8 +58,6 @@ export const insertSubjectSchema = createInsertSchema(subjects).pick({
 
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Subject = typeof subjects.$inferSelect;
-
-
 
 
 
@@ -93,6 +90,7 @@ export type Question = typeof questions.$inferSelect;
 
 
 
+
 // Quiz attempts
 export const attempts = pgTable("attempts", {
   id: serial("id").primaryKey(),
@@ -116,6 +114,7 @@ export type Attempt = typeof attempts.$inferSelect;
 
 // Quiz answers for each attempt
 
+
 export const answers = pgTable("answers", {
   id: serial("id").primaryKey(),
   attemptId: integer("attempt_id").references(() => attempts.id),
@@ -138,6 +137,7 @@ export type InsertAnswer = z.infer<typeof insertAnswerSchema>;
 export type Answer = typeof answers.$inferSelect;
 
 // User performance stats by category
+
 
 export const userStats = pgTable("user_stats", {
   id: serial("id").primaryKey(),

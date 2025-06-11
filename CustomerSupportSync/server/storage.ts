@@ -4,8 +4,6 @@ import {
   categories, categories as categoriesTable,
   subjects, subjects as subjectsTable,
 
-
-
   questions, questions as questionsTable,
   attempts, attempts as attemptsTable,
   answers, answers as answersTable,
@@ -14,8 +12,6 @@ import {
   type User, type InsertUser,
   type Category, type InsertCategory,
   type Subject, type InsertSubject,
-
-
 
   type Question, type InsertQuestion,
   type Attempt, type InsertAttempt,
@@ -54,6 +50,7 @@ export interface IStorage {
   // Quiz attempts
 
   startAttempt(userId: number, questionIds: number[]): Promise<Attempt>;
+
   getAttempt(id: number): Promise<Attempt | undefined>;
   getUserAttempts(userId: number): Promise<Attempt[]>;
   finishAttempt(id: number, score: number, timeSpent: number): Promise<Attempt | undefined>;
@@ -131,6 +128,7 @@ export class DatabaseStorage implements IStorage {
     
     return createdSubject;
   }
+
 
   async getQuestions(filters?: {category?: number, difficulty?: string, subject?: number}): Promise<Question[]> {
     let query = db.select().from(questionsTable);

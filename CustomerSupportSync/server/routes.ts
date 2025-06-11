@@ -240,6 +240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
+
   // Import questions endpoint
   app.post('/api/import/questions', async (req, res) => {
     try {
@@ -317,6 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+
   // Questions endpoints
   app.get('/api/questions', async (req, res) => {
     try {
@@ -347,11 +349,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // For simplicity in our demo, allow guest mode without authentication
       const userId = req.body.user?.userId || 1; // Use user ID if authenticated, or default to 1
+
       const { questionIds } = req.body;
+
 
       if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
         return res.status(400).json({ message: "Question IDs are required" });
       }
+
 
 
       const attempt = await storage.startAttempt(userId, questionIds);
@@ -485,6 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { questionIds, score, answers } = req.body;
 
+
       
       if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
         return res.status(400).json({ message: "Question IDs are required" });
@@ -492,8 +498,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create a new attempt
 
-
       const attempt = await storage.startAttempt(userId, questionIds);
+
       
       // Record all answers
       if (answers && Array.isArray(answers)) {

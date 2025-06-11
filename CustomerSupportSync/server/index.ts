@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+
 import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
 import fs from "fs";
@@ -229,6 +230,7 @@ function getCategoryColor(id: number): string {
 }
 
 // Error handling middleware
+
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
@@ -236,7 +238,9 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 (async () => {
+
   const server = createServer(app);
+
 
   if (app.get("env") === "development") {
     await setupVite(app, server);
@@ -244,13 +248,13 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     serveStatic(app);
   }
 
+
   const port = 5000;
   server.listen({
     port,
     host: "0.0.0.0",
     // @ts-ignore
     reusePort: true
-  }, () => {
-    log(`serving on port ${port}`);
+  }, () => {    log(`serving on port ${port}`);
   });
 })();
