@@ -31,4 +31,7 @@ Run `npm run db:push` to create the schema in a fresh database.
 
 For reference, `docs/schema.sql` includes a full MySQL schema covering
 subjects, chapters, quiz sets, questions and gameplay statistics. This file can
+
+
+
 be used to initialize a compatible MySQL 8 database.

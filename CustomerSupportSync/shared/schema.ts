@@ -1,8 +1,9 @@
+
 import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User model
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -23,6 +24,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Categories for questions
+
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
@@ -38,6 +40,7 @@ export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
 
 // Subjects for organizing question sets
+
 export const subjects = pgTable("subjects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -53,6 +56,9 @@ export const insertSubjectSchema = createInsertSchema(subjects).pick({
 
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Subject = typeof subjects.$inferSelect;
+
+
+
 
 // Question model with difficulty, category, and subject
 export const questions = pgTable("questions", {
@@ -80,6 +86,7 @@ export const insertQuestionSchema = createInsertSchema(questions).pick({
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type Question = typeof questions.$inferSelect;
 
+
 // Quiz attempts
 export const attempts = pgTable("attempts", {
   id: serial("id").primaryKey(),
@@ -93,6 +100,7 @@ export const attempts = pgTable("attempts", {
 
 export const insertAttemptSchema = createInsertSchema(attempts).pick({
   userId: true,
+
   totalQuestions: true,
 });
 
@@ -100,6 +108,7 @@ export type InsertAttempt = z.infer<typeof insertAttemptSchema>;
 export type Attempt = typeof attempts.$inferSelect;
 
 // Quiz answers for each attempt
+
 export const answers = pgTable("answers", {
   id: serial("id").primaryKey(),
   attemptId: integer("attempt_id").references(() => attempts.id),
@@ -122,6 +131,7 @@ export type InsertAnswer = z.infer<typeof insertAnswerSchema>;
 export type Answer = typeof answers.$inferSelect;
 
 // User performance stats by category
+
 export const userStats = pgTable("user_stats", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -146,6 +156,7 @@ export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
 export type UserStats = typeof userStats.$inferSelect;
 
 // Spaced repetition for user learning
+
 export const reviewSchedule = pgTable("review_schedule", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),

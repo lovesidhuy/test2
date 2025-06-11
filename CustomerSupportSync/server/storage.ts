@@ -3,6 +3,7 @@ import {
   users, users as usersTable, 
   categories, categories as categoriesTable,
   subjects, subjects as subjectsTable,
+
   questions, questions as questionsTable,
   attempts, attempts as attemptsTable,
   answers, answers as answersTable,
@@ -11,6 +12,7 @@ import {
   type User, type InsertUser,
   type Category, type InsertCategory,
   type Subject, type InsertSubject,
+
   type Question, type InsertQuestion,
   type Attempt, type InsertAttempt,
   type Answer, type InsertAnswer,
@@ -35,6 +37,7 @@ export interface IStorage {
   getSubjects(): Promise<Subject[]>;
   getSubjectById(id: number): Promise<Subject | undefined>;
   createSubject(subject: InsertSubject): Promise<Subject>;
+
   
   // Questions
   getQuestions(filters?: {category?: number, difficulty?: string}): Promise<Question[]>;
@@ -44,7 +47,9 @@ export interface IStorage {
   deleteQuestion(id: number): Promise<boolean>;
   
   // Quiz attempts
+
   startAttempt(userId: number, questionIds: number[]): Promise<Attempt>;
+
   getAttempt(id: number): Promise<Attempt | undefined>;
   getUserAttempts(userId: number): Promise<Attempt[]>;
   finishAttempt(id: number, score: number, timeSpent: number): Promise<Attempt | undefined>;
@@ -118,6 +123,7 @@ export class DatabaseStorage implements IStorage {
     const [createdSubject] = await db.insert(subjectsTable)
       .values(subject)
       .returning();
+
     
     return createdSubject;
   }
@@ -184,6 +190,7 @@ export class DatabaseStorage implements IStorage {
     
     return result.count > 0;
   }
+
 
   async startAttempt(userId: number, questionIds: number[]): Promise<Attempt> {
     const [attempt] = await db.insert(attemptsTable)
