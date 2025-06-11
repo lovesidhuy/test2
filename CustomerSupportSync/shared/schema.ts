@@ -1,9 +1,12 @@
-import { mysqlTable, text, serial, int, timestamp, boolean, json, primaryKey } from "drizzle-orm/mysql-core";
+
+
+import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User model
-export const users = mysqlTable("users", {
+
+export const users = pgTable("users", {
+
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
@@ -23,7 +26,9 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Categories for questions
-export const categories = mysqlTable("categories", {
+
+
+export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   color: text("color").notNull(),
@@ -38,7 +43,8 @@ export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
 
 // Subjects for organizing question sets
-export const subjects = mysqlTable("subjects", {
+
+export const subjects = pgTable("subjects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -54,58 +60,20 @@ export const insertSubjectSchema = createInsertSchema(subjects).pick({
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Subject = typeof subjects.$inferSelect;
 
-// Chapters belong to a subject
-export const chapters = mysqlTable("chapters", {
-  id: serial("id").primaryKey(),
-  subjectId: int("subject_id").references(() => subjects.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  sortOrder: int("sort_order").default(0),
-});
 
-export const insertChapterSchema = createInsertSchema(chapters).pick({
-  subjectId: true,
-  name: true,
-  description: true,
-  sortOrder: true,
-});
 
-export type InsertChapter = z.infer<typeof insertChapterSchema>;
-export type Chapter = typeof chapters.$inferSelect;
 
-// Quiz sets group questions within a chapter
-export const quizSets = mysqlTable("quiz_sets", {
-  id: serial("id").primaryKey(),
-  chapterId: int("chapter_id").references(() => chapters.id),
-  title: text("title").notNull(),
-  gptSourceJson: json("gpt_source_json"),
-  totalQuestions: int("total_questions"),
-  isActive: boolean("is_active").default(true),
-  createdBy: int("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertQuizSetSchema = createInsertSchema(quizSets).pick({
-  chapterId: true,
-  title: true,
-  gptSourceJson: true,
-  totalQuestions: true,
-  isActive: true,
-  createdBy: true,
-});
-
-export type InsertQuizSet = z.infer<typeof insertQuizSetSchema>;
-export type QuizSet = typeof quizSets.$inferSelect;
 
 // Question model with difficulty, category, and subject
-export const questions = mysqlTable("questions", {
+export const questions = pgTable("questions", {
   id: serial("id").primaryKey(),
   question: text("question").notNull(),
   options: text("options").notNull(), // JSON string of options array
-  answer: int("answer").notNull(), // Index of correct answer
+  answer: integer("answer").notNull(), // Index of correct answer
   explanation: text("explanation"), // Explanation of the answer
-  category: int("category").references(() => categories.id),
-  subject: int("subject").references(() => subjects.id),
+  category: integer("category").references(() => categories.id),
+  subject: integer("subject").references(() => subjects.id),
+
   difficulty: text("difficulty").notNull(), // easy, medium, hard
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -123,34 +91,23 @@ export const insertQuestionSchema = createInsertSchema(questions).pick({
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type Question = typeof questions.$inferSelect;
 
-// Map questions to quiz sets
-export const setQuestions = mysqlTable(
-  "set_questions",
-  {
-    quizSetId: int("quiz_set_id").references(() => quizSets.id),
-    questionId: int("question_id").references(() => questions.id),
-    position: int("position").notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.quizSetId, table.position] }),
-  })
-);
+
 
 // Quiz attempts
-export const attempts = mysqlTable("attempts", {
+export const attempts = pgTable("attempts", {
   id: serial("id").primaryKey(),
-  userId: int("user_id").references(() => users.id),
-  quizSetId: int("quiz_set_id").references(() => quizSets.id),
+  userId: integer("user_id").references(() => users.id),
   startedAt: timestamp("started_at").defaultNow(),
   finishedAt: timestamp("finished_at"),
-  score: int("score"),
-  totalQuestions: int("total_questions").notNull(),
-  timeSpent: int("time_spent"), // in seconds
+  score: integer("score"),
+  totalQuestions: integer("total_questions").notNull(),
+  timeSpent: integer("time_spent"), // in seconds
+
 });
 
 export const insertAttemptSchema = createInsertSchema(attempts).pick({
   userId: true,
-  quizSetId: true,
+
   totalQuestions: true,
 });
 
@@ -158,13 +115,14 @@ export type InsertAttempt = z.infer<typeof insertAttemptSchema>;
 export type Attempt = typeof attempts.$inferSelect;
 
 // Quiz answers for each attempt
-export const answers = mysqlTable("answers", {
+
+export const answers = pgTable("answers", {
   id: serial("id").primaryKey(),
-  attemptId: int("attempt_id").references(() => attempts.id),
-  questionId: int("question_id").references(() => questions.id),
-  chosenAnswer: int("chosen_answer"),
+  attemptId: integer("attempt_id").references(() => attempts.id),
+  questionId: integer("question_id").references(() => questions.id),
+  chosenAnswer: integer("chosen_answer"),
   correct: boolean("correct"),
-  timeSpent: int("time_spent"), // in seconds
+  timeSpent: integer("time_spent"), // in seconds
   answeredAt: timestamp("answered_at"),
 });
 
@@ -180,15 +138,16 @@ export type InsertAnswer = z.infer<typeof insertAnswerSchema>;
 export type Answer = typeof answers.$inferSelect;
 
 // User performance stats by category
-export const userStats = mysqlTable("user_stats", {
+
+export const userStats = pgTable("user_stats", {
   id: serial("id").primaryKey(),
-  userId: int("user_id").references(() => users.id),
-  categoryId: int("category_id").references(() => categories.id),
-  totalAttempts: int("total_attempts").default(0),
-  correctAnswers: int("correct_answers").default(0),
-  avgTimePerQuestion: int("avg_time_per_question"),
+  userId: integer("user_id").references(() => users.id),
+  categoryId: integer("category_id").references(() => categories.id),
+  totalAttempts: integer("total_attempts").default(0),
+  correctAnswers: integer("correct_answers").default(0),
+  avgTimePerQuestion: integer("avg_time_per_question"),
   lastAttempt: timestamp("last_attempt"),
-  streak: int("streak").default(0),
+  streak: integer("streak").default(0),
 });
 
 export const insertUserStatsSchema = createInsertSchema(userStats).pick({
@@ -204,14 +163,16 @@ export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
 export type UserStats = typeof userStats.$inferSelect;
 
 // Spaced repetition for user learning
-export const reviewSchedule = mysqlTable("review_schedule", {
+
+
+export const reviewSchedule = pgTable("review_schedule", {
   id: serial("id").primaryKey(),
-  userId: int("user_id").references(() => users.id),
-  questionId: int("question_id").references(() => questions.id),
+  userId: integer("user_id").references(() => users.id),
+  questionId: integer("question_id").references(() => questions.id),
   nextReview: timestamp("next_review"),
-  interval: int("interval").default(1), // days until next review
-  easeFactor: int("ease_factor").default(250), // multiplier for spaced repetition
-  consecutive: int("consecutive").default(0), // consecutive correct answers
+  interval: integer("interval").default(1), // days until next review
+  easeFactor: integer("ease_factor").default(250), // multiplier for spaced repetition
+  consecutive: integer("consecutive").default(0), // consecutive correct answers
 });
 
 export const insertReviewScheduleSchema = createInsertSchema(reviewSchedule).pick({

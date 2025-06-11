@@ -1,30 +1,234 @@
 import express, { Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
-import { registerRoutes } from "./routes";
+import fs from "fs";
+import path from "path";
+import { v4 as uuid } from "uuid";
 
+// Create our simple Express app
 const app = express();
 app.use(express.json());
 
+// Logger middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
-  const path = req.path;
-  let json: any;
-  const orig = res.json;
-  res.json = function (body: any, ...args: any[]) {
-    json = body;
-    return orig.apply(res, [body, ...args]);
+  const reqPath = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson: any, ...args: any[]) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
   };
+
   res.on("finish", () => {
-    if (path.startsWith("/api")) {
-      let line = `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms`;
-      if (json) line += ` :: ${JSON.stringify(json)}`;
-      if (line.length > 80) line = line.slice(0, 79) + "…";
-      log(line);
+    const duration = Date.now() - start;
+    if (reqPath.startsWith("/api")) {
+      let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
     }
   });
+
   next();
 });
 
+// In-memory storage for quiz sessions and results
+const attempts: Record<string, any> = {};
+const answers: Record<string, any[]> = {};
+
+// Load questions from JSON
+let QUESTIONS: any[] = [];
+try {
+  const questionsPath = path.join(process.cwd(), "client/public/questions.json");
+  const data = fs.readFileSync(questionsPath, 'utf8');
+  QUESTIONS = JSON.parse(data);
+  console.log(`Loaded ${QUESTIONS.length} questions from JSON file`);
+} catch (error) {
+  console.error("Error loading questions:", error);
+}
+
+// API Routes
+// Get all questions (optionally filtered)
+app.get('/api/questions', (req, res) => {
+  let filteredQuestions = [...QUESTIONS];
+
+  if (req.query.category) {
+    filteredQuestions = filteredQuestions.filter(
+      q => q.category === parseInt(req.query.category as string)
+    );
+  }
+
+  if (req.query.difficulty) {
+    filteredQuestions = filteredQuestions.filter(
+      q => q.difficulty === req.query.difficulty
+    );
+  }
+
+  res.json({ questions: filteredQuestions });
+});
+
+// Get categories derived from questions
+app.get('/api/categories', (req, res) => {
+  const categoryIds = Array.from(
+    new Set(QUESTIONS.map(q => q.category))
+  ).filter(Boolean);
+
+  const categories = categoryIds.map(id => ({
+    id,
+    name: getCategoryName(id as number),
+    color: getCategoryColor(id as number)
+  }));
+
+  res.json({ categories });
+});
+
+// Start a new quiz attempt
+app.post('/api/quiz/start', (req, res) => {
+  const user = req.body.username || 'guest';
+  const questionIds = req.body.questionIds || QUESTIONS.map(q => q.id);
+
+  const attemptId = uuid();
+  const startedAt = new Date().toISOString();
+
+  attempts[attemptId] = {
+    id: attemptId,
+    user,
+    startedAt,
+    totalQuestions: questionIds.length
+  };
+
+  answers[attemptId] = [];
+
+  const quizQuestions = QUESTIONS
+    .filter(q => questionIds.includes(q.id))
+    .map(q => {
+      const { answer, explanation, ...rest } = q;
+      return rest;
+    });
+
+  res.json({ attemptId, questions: quizQuestions });
+});
+
+// Submit answer for a question
+app.post('/api/quiz/:attemptId/answer', (req, res) => {
+  const { attemptId } = req.params;
+  const { questionId, chosenAnswer, timeSpent, isLast } = req.body;
+
+  if (!attempts[attemptId]) {
+    return res.status(404).json({ message: 'Attempt not found' });
+  }
+
+  const question = QUESTIONS.find(q => q.id === questionId);
+
+  if (!question) {
+    return res.status(400).json({ message: 'Question not found' });
+  }
+
+  const correct = question.answer === chosenAnswer;
+
+  answers[attemptId].push({
+    questionId,
+    chosenAnswer,
+    correct,
+    timeSpent: timeSpent || 0
+  });
+
+  if (isLast) {
+    const correctAnswers = answers[attemptId].filter(a => a.correct).length;
+    const score = Math.round((correctAnswers / attempts[attemptId].totalQuestions) * 100);
+
+    attempts[attemptId] = {
+      ...attempts[attemptId],
+      finishedAt: new Date().toISOString(),
+      score,
+      timeSpent: answers[attemptId].reduce((sum, a) => sum + (a.timeSpent || 0), 0)
+    };
+  }
+
+  res.json({
+    correct,
+    correctAnswer: question.answer,
+    explanation: question.explanation
+  });
+});
+
+// Get a quiz attempt (for review)
+app.get('/api/quiz/:attemptId', (req, res) => {
+  const { attemptId } = req.params;
+  const attempt = attempts[attemptId];
+
+  if (!attempt) {
+    return res.status(404).json({ message: 'Attempt not found' });
+  }
+
+  const attemptAnswers = answers[attemptId] || [];
+  const questions = QUESTIONS
+    .filter(q => attemptAnswers.some(a => a.questionId === q.id))
+    .map(q => {
+      const answer = attemptAnswers.find(a => a.questionId === q.id);
+      return {
+        ...q,
+        chosen: answer ? answer.chosenAnswer : undefined,
+        correct: answer ? answer.correct : undefined,
+        timeSpent: answer ? answer.timeSpent : undefined
+      };
+    });
+
+  res.json({ attempt, questions });
+});
+
+// Get all past quiz attempts
+app.get('/api/attempts', (req, res) => {
+  const allAttempts = Object.values(attempts);
+  res.json({ attempts: allAttempts });
+});
+
+// Custom endpoint to reload questions from JSON
+app.post('/api/reload-questions', (req, res) => {
+  try {
+    const questionsPath = path.join(process.cwd(), "client/public/questions.json");
+    const data = fs.readFileSync(questionsPath, 'utf8');
+    QUESTIONS = JSON.parse(data);
+    console.log(`Reloaded ${QUESTIONS.length} questions from JSON file`);
+    res.json({ success: true, count: QUESTIONS.length });
+  } catch (error: any) {
+    console.error("Error reloading questions:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper functions for category data
+function getCategoryName(id: number): string {
+  const categories: Record<number, string> = {
+    1: 'JavaScript',
+    2: 'React',
+    3: 'Python',
+    4: 'Data Structures',
+    5: 'Algorithms'
+  };
+  return categories[id] || `Category ${id}`;
+}
+
+function getCategoryColor(id: number): string {
+  const colors: Record<number, string> = {
+    1: '#f7df1e',
+    2: '#61dafb',
+    3: '#3776ab',
+    4: '#4caf50',
+    5: '#ff5722'
+  };
+  return colors[id] || `#${Math.floor(Math.random()*16777215).toString(16)}`;
+}
+
+// Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
@@ -32,7 +236,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  const server = createServer(app);
 
   if (app.get("env") === "development") {
     await setupVite(app, server);
@@ -41,7 +245,12 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   }
 
   const port = 5000;
-  server.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    // @ts-ignore
+    reusePort: true
+  }, () => {
     log(`serving on port ${port}`);
   });
 })();
